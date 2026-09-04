@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 학교 고유색: HSL 값만 교체하면 전체 주요 색상이 변경됩니다. */
+    --primary: 194 81% 30%;
+    --primary-foreground: 0 0% 100%;
+    --surface: 0 0% 100%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215 16% 47%;
+    --border: 214 32% 91%;
+  }
+  * { @apply border-border; }
+  body { @apply bg-slate-50 text-slate-900 antialiased; font-family: Arial, "Pretendard", sans-serif; }
+  button { @apply transition-colors; }
+}
+
+@layer components {
+  .primary-btn { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-lg shadow-sky-900/10 hover:opacity-90; }
+  .field-label { @apply block text-sm font-bold text-slate-700; }
+  .field { @apply mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-normal text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100; }
+  .card { @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-card; }
+  .table-wrap { @apply overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-card; }
+  .table-wrap table { @apply w-full min-w-[720px] text-left text-sm; }
+  .table-wrap thead { @apply bg-slate-50 text-slate-500; }
+  .table-wrap tbody { @apply divide-y divide-slate-100; }
+  .table-wrap th, .table-wrap td { @apply p-4; }
+}
