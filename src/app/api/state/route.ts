@@ -32,7 +32,14 @@ export async function PUT(request: Request) {
   if (!(await authorized())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await request.json();
-    const { data, error } = await database().from("school_app_state").upsert({ id: "main", data: body, updated_at: new Date().toISOString() }).select("updated_at").single();
+    const client = database();
+    const { data: current, error: readError } = await client.from("school_app_state").select("data").eq("id", "main").maybeSingle();
+    if (readError) throw readError;
+    // PUT is only for the very first seed. Old browser tabs must never overwrite live shared data.
+    if (current && current.data && Object.keys(current.data as Record<string, unknown>).length > 0) {
+      return NextResponse.json({ error: "Full-state replacement is disabled" }, { status: 409 });
+    }
+    const { data, error } = await client.from("school_app_state").upsert({ id: "main", data: body, updated_at: new Date().toISOString() }).select("updated_at").single();
     if (error) throw error;
     return NextResponse.json({ ok: true, updatedAt: data.updated_at });
   } catch (error) {
