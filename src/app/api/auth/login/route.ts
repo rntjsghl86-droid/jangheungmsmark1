@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const secret=await configuredAdminPin();
     if (!secret) return NextResponse.json({error:"교원 PIN과 다른 관리자 전용 PIN(숫자 4~12자리)을 설정해야 합니다."},{status:503});
     const a=Buffer.from(secret),b=Buffer.from(String(pin||""));
-    if(a.length!==b.length||!timingSafeEqual(a,b))return NextResponse.json({ok:false},{status:401});
+    if(a.length!==b.length||!timingSafeEqual(a,b))return NextResponse.json({ok:false,error:"관리자 PIN이 올바르지 않습니다."},{status:401});
     const response=NextResponse.json({ok:true,role,permissions});
     response.cookies.set("school_admin",adminSession()!,{httpOnly:true,sameSite:"strict",secure:process.env.NODE_ENV==="production",maxAge:60*60*12,path:"/"});
     response.cookies.delete("school_session");
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const expected = Buffer.from(configured);
   const provided = Buffer.from(pinHash(String(pin || "")));
   if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "교사 공용 PIN이 올바르지 않습니다." }, { status: 401 });
   }
   const response = NextResponse.json({ ok: true, role, permissions });
   response.cookies.delete("school_admin");
