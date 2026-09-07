@@ -1,6 +1,7 @@
-import { createHash } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { permissionsFrom, type Role } from "./permissions";
 
 export function database() {
   const url = process.env.SUPABASE_URL;
@@ -24,8 +25,29 @@ export async function configuredPinHash() {
 }
 
 export async function authorized() {
-  const hash = await configuredPinHash();
-  if (!hash) return false;
+  return (await currentRole()) !== null;
+}
+
+export function adminSession() {
+  const secret = process.env.ADMIN_PIN;
+  return secret ? createHmac("sha256", secret).update("jangheung-admin-session-v1").digest("hex") : null;
+}
+function equal(a: string | undefined, b: string | null) {
+  return !!a && !!b && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+export async function configuredAdminPin() {
+  const pin=process.env.ADMIN_PIN;
+  if(!pin || !/^\d{4,12}$/.test(pin) || pinHash(pin)===await configuredPinHash())return null;
+  return pin;
+}
+export async function currentRole(): Promise<Role | null> {
   const store = await cookies();
-  return store.get("school_session")?.value === sessionValue(hash);
+  if (equal(store.get("school_admin")?.value, adminSession()) && await configuredAdminPin()) return "admin";
+  const hash = await configuredPinHash();
+  return hash && equal(store.get("school_session")?.value, sessionValue(hash)) ? "teacher" : null;
+}
+export async function teacherPermissions() {
+  const { data, error } = await database().from("school_app_state").select("data").eq("id", "main").single();
+  if (error) throw error;
+  return permissionsFrom(data.data?.settings?.teacherPermissions);
 }

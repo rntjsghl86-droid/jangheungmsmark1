@@ -1,0 +1,96 @@
+{
+  "createdAt": "2026-09-07T00:15:22.027Z",
+  "sessions": {
+    "admin": 5,
+    "teacher": 20
+  },
+  "adapter": "Real API/auth handlers; delayed in-memory Supabase adapter. NOT production capacity testing.",
+  "casRetriesObserved": 1391,
+  "scenarios": [
+    {
+      "scenario": "5 administrators + 20 teachers: 25 independent authenticated sessions",
+      "result": "PASS",
+      "localMilliseconds": 30
+    },
+    {
+      "scenario": "25 sessions x 10 rounds: 250 simultaneous record additions, no loss",
+      "result": "PASS",
+      "localMilliseconds": 6401
+    },
+    {
+      "scenario": "25 simultaneous student additions preserve all students",
+      "result": "PASS",
+      "localMilliseconds": 585
+    },
+    {
+      "scenario": "25 different student edits persist without replacing whole roster",
+      "result": "PASS",
+      "localMilliseconds": 642
+    },
+    {
+      "scenario": "Same record edited by all 25: exactly 1 save, 24 explicit conflicts",
+      "result": "PASS",
+      "localMilliseconds": 123
+    },
+    {
+      "scenario": "Administrator deletion versus teacher edit: 1 success, 1 conflict",
+      "result": "PASS",
+      "localMilliseconds": 61
+    },
+    {
+      "scenario": "25 concurrent deletions of different records persist",
+      "result": "PASS",
+      "localMilliseconds": 641
+    },
+    {
+      "scenario": "Teacher student deletion versus new record: no orphaned records",
+      "result": "PASS",
+      "localMilliseconds": 91
+    },
+    {
+      "scenario": "20 teachers cannot change permissions, restore, or change rules",
+      "result": "PASS",
+      "localMilliseconds": 60
+    },
+    {
+      "scenario": "5 administrators editing permissions: 1 success, 4 explicit conflicts",
+      "result": "PASS",
+      "localMilliseconds": 64
+    },
+    {
+      "scenario": "Revocation during in-flight teacher save is enforced on retry",
+      "result": "PASS",
+      "localMilliseconds": 181
+    },
+    {
+      "scenario": "Backup restore racing with another write refuses stale replacement",
+      "result": "PASS",
+      "localMilliseconds": 123
+    },
+    {
+      "scenario": "Restore invalidates all 25 old browser writes, including additions",
+      "result": "PASS",
+      "localMilliseconds": 153
+    },
+    {
+      "scenario": "Same student edited by all 25: exactly 1 save, 24 explicit conflicts",
+      "result": "PASS",
+      "localMilliseconds": 106
+    },
+    {
+      "scenario": "Stale whole-roster save cannot overwrite a newer teacher edit",
+      "result": "PASS",
+      "localMilliseconds": 77
+    },
+    {
+      "scenario": "Both PINs are role-specific; identical PIN configuration rejected",
+      "result": "PASS",
+      "localMilliseconds": 107
+    },
+    {
+      "scenario": "Authenticated reads and backups never include PIN hash or settings",
+      "result": "PASS",
+      "localMilliseconds": 79
+    }
+  ]
+}

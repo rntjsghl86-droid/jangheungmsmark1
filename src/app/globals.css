@@ -30,3 +30,5 @@
   .filter-chip { @apply rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 hover:border-sky-300; }
   .filter-chip-active { @apply border-primary bg-primary text-white hover:border-primary; }
 }
+
+button:disabled, input:disabled { opacity: .4; cursor: not-allowed; }

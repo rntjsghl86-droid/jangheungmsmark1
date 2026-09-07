@@ -1,14 +1,14 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
-import { authorized, database, pinHash, sessionValue } from "@/lib/server-auth";
+import { currentRole, configuredAdminPin, database, pinHash, sessionValue } from "@/lib/server-auth";
 
 export async function POST(request: Request) {
-  if (!(await authorized())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { adminPassword, newPin } = await request.json();
-  const configuredAdmin = process.env.ADMIN_PASSWORD;
+  if ((await currentRole()) !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { adminPin, newPin } = await request.json();
+  const configuredAdmin = await configuredAdminPin();
   if (!configuredAdmin) return NextResponse.json({ error: "관리자 비밀번호가 설정되지 않았습니다." }, { status: 503 });
   const expected = Buffer.from(configuredAdmin);
-  const provided = Buffer.from(String(adminPassword || ""));
+  const provided = Buffer.from(String(adminPin || ""));
   if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
     return NextResponse.json({ error: "관리자 비밀번호가 올바르지 않습니다." }, { status: 403 });
   }
@@ -16,6 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "새 PIN은 숫자 4~12자리로 입력해 주세요." }, { status: 400 });
   }
 
+  if(String(newPin)===configuredAdmin)return NextResponse.json({error:"교원 PIN과 관리자 PIN은 서로 달라야 합니다."},{status:400});
   const client = database();
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const { data: current, error: readError } = await client.from("school_app_state").select("data, updated_at").eq("id", "main").single();
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     const currentData = (current.data || {}) as Record<string, unknown>;
     const settings = { ...((currentData.settings || {}) as Record<string, unknown>), pinHash: hash };
     const nextData = { ...currentData, settings };
-    const updatedAt = new Date(Date.now() + attempt).toISOString();
+    const updatedAt = new Date(Math.max(Date.now() + attempt, Date.parse(current.updated_at)+1)).toISOString();
     const { data: updated, error } = await client.from("school_app_state").update({ data: nextData, updated_at: updatedAt }).eq("id", "main").eq("updated_at", current.updated_at).select("id").maybeSingle();
     if (error) throw error;
     if (updated) {

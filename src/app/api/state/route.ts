@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
-import { authorized, database } from "@/lib/server-auth";
+import { authorized, currentRole, database } from "@/lib/server-auth";
+import { applyStateOperation, epochOf, OperationError, type StateOperation } from "@/lib/state-operations";
+import { dataKeys, publicData, makeBackup, parseBackup } from "@/lib/backup";
 
 export async function GET() {
   if (!(await authorized())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { data, error } = await database().from("school_app_state").select("data, updated_at").eq("id", "main").single();
     if (error) throw error;
-    return NextResponse.json({ data: data.data, updatedAt: data.updated_at });
-  } catch (error) {
+    return NextResponse.json({ data: publicData(data.data), epoch: epochOf(data.data), updatedAt: data.updated_at }, {headers:{"Cache-Control":"no-store"}});
+  } catch (error) { if (error instanceof OperationError) return NextResponse.json({error:error.message},{status:error.status});
     return NextResponse.json({ error: error instanceof Error ? error.message : "Database error" }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request) {
-  if (!(await authorized())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if ((await currentRole()) !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   try {
-    const body = await request.json();
+    const body = parseBackup(makeBackup(await request.json()));
     const client = database();
     const { data: current, error: readError } = await client.from("school_app_state").select("data").eq("id", "main").maybeSingle();
     if (readError) throw readError;
@@ -26,37 +28,17 @@ export async function PUT(request: Request) {
     const { data, error } = await client.from("school_app_state").upsert({ id: "main", data: body, updated_at: new Date().toISOString() }).select("updated_at").single();
     if (error) throw error;
     return NextResponse.json({ ok: true, updatedAt: data.updated_at });
-  } catch (error) {
+  } catch (error) { if (error instanceof OperationError) return NextResponse.json({error:error.message},{status:error.status});
     return NextResponse.json({ error: error instanceof Error ? error.message : "Database error" }, { status: 500 });
   }
 }
 
-type StateOperation =
-  | { type: "record:add"; record: Record<string, unknown> }
-  | { type: "record:update"; record: Record<string, unknown> & { id: string } }
-  | { type: "record:delete"; id: string }
-  | { type: "state:merge"; data: Record<string, unknown> };
-
-function applyOperation(state: Record<string, unknown>, operation: StateOperation) {
-  if (operation.type === "state:merge") return { ...state, ...operation.data };
-  const records = Array.isArray(state.records) ? [...state.records] as Array<Record<string, unknown>> : [];
-  if (operation.type === "record:add") {
-    if (!records.some(record => record.id === operation.record.id)) records.unshift(operation.record);
-  } else if (operation.type === "record:update") {
-    const index = records.findIndex(record => record.id === operation.record.id);
-    if (index >= 0) records[index] = operation.record;
-  } else {
-    const index = records.findIndex(record => record.id === operation.id);
-    if (index >= 0) records.splice(index, 1);
-  }
-  return { ...state, records };
-}
-
 export async function PATCH(request: Request) {
-  if (!(await authorized())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const role = await currentRole();
+  if (!role) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const operation = await request.json() as StateOperation;
-    if (!["record:add", "record:update", "record:delete", "state:merge"].includes(operation.type)) {
+    if (!["record:add", "record:update", "record:delete", "student:add", "student:update", "student:delete", "state:merge"].includes(operation.type)) {
       return NextResponse.json({ error: "Invalid operation" }, { status: 400 });
     }
 
@@ -67,11 +49,11 @@ export async function PATCH(request: Request) {
         .from("school_app_state").select("data, updated_at").eq("id", "main").single();
       if (readError) throw readError;
 
-      const nextData = applyOperation((current.data || {}) as Record<string, unknown>, operation);
+      const nextData = applyStateOperation(current.data || {}, operation, role);
       if (JSON.stringify(nextData) === JSON.stringify(current.data || {})) {
-        return NextResponse.json({ ok: true, data: current.data, updatedAt: current.updated_at });
+        return NextResponse.json({ ok: true, data: publicData(current.data), epoch: epochOf(current.data), updatedAt: current.updated_at });
       }
-      const nextUpdatedAt = new Date(Date.now() + attempt).toISOString();
+      const nextUpdatedAt = new Date(Math.max(Date.now() + attempt, Date.parse(current.updated_at) + 1)).toISOString();
       const { data: updated, error: updateError } = await client
         .from("school_app_state")
         .update({ data: nextData, updated_at: nextUpdatedAt })
@@ -80,12 +62,12 @@ export async function PATCH(request: Request) {
         .select("data, updated_at")
         .maybeSingle();
       if (updateError) throw updateError;
-      if (updated) return NextResponse.json({ ok: true, data: updated.data, updatedAt: updated.updated_at });
+      if (updated) return NextResponse.json({ ok: true, data: publicData(updated.data), epoch: epochOf(updated.data), updatedAt: updated.updated_at });
       // Spread retries slightly so a burst of many teachers does not keep colliding.
       await new Promise(resolve => setTimeout(resolve, Math.min(5 + attempt * 3, 100) + Math.random() * 20));
     }
     return NextResponse.json({ error: "Concurrent update; please retry" }, { status: 409 });
-  } catch (error) {
+  } catch (error) { if (error instanceof OperationError) return NextResponse.json({error:error.message},{status:error.status});
     return NextResponse.json({ error: error instanceof Error ? error.message : "Database error" }, { status: 500 });
   }
 }
